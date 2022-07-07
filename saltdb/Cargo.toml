@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 description = "A super lightweight database that can be used to store data in a simple and efficient way."
 license = "Apache-2.0"
+repository = "https://github.com/DukeofStars/salt.git"
 
 [dependencies]
