@@ -41,6 +41,10 @@ where
             }
         }
     }
+
+    pub fn insert(&mut self, row: T) {
+        self.rows.push(row);
+    }
 }
 
 // Helper function to parse lines.

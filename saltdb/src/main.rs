@@ -8,6 +8,8 @@ fn main() {
     let mut db = Database::<Row>::connect(db.into());
     db.parse();
 
+    db.insert(Row::from_str("\"The third row\";3").expect("Failed to parse row"));
+
     for row in db.rows {
         println!("> {:?}", row);
     }
