@@ -6,7 +6,9 @@ use std::{
     str::FromStr,
 };
 
-pub struct Database<T: FromStr + Default + ToStr>
+pub struct RowHandle(usize);
+
+pub struct Database<T: FromStr + Default + ToStr + PartialEq>
 where
     <T as FromStr>::Err: Debug,
 {
@@ -14,7 +16,7 @@ where
     pub rows: Vec<T>,
 }
 
-impl<T: FromStr + Default + ToStr> Database<T>
+impl<T: FromStr + Default + ToStr + PartialEq> Database<T>
 where
     <T as FromStr>::Err: Debug,
 {
@@ -28,10 +30,15 @@ where
 
     pub fn parse(&mut self) {
         // Read each line of file one by one and convert it too Schema (T)
-        let buf_reader = BufReader::new(File::open(&self.path).expect("Failed to open database"));
+        let mut file = File::open(&self.path);
+        if file.is_err() {
+            println!("Creating new database");
+            file = File::create(&self.path);
+        }
+        let buf_reader = BufReader::new(file.expect("Failed to create database"));
         let lines = buf_reader.lines();
-        for line_ in lines {
-            let line = line_.unwrap();
+        for line in lines {
+            let line = line.unwrap();
             let row = T::from_str(&line);
             if row.is_err() {
                 println!("Failed to parse line, restoring to default");
@@ -46,6 +53,32 @@ where
         self.rows.push(row);
     }
 
+    pub fn query<F: Fn(&T) -> bool + Send + Sync>(&mut self, expr: F) -> Option<RowHandle> {
+        for (index, row) in self.rows.iter().enumerate() {
+            if expr(row) {
+                return Some(RowHandle(index));
+            }
+        }
+        None
+    }
+
+    pub fn delete(&mut self, row_handle: RowHandle) -> Result<(), ()> {
+        let row = self.get(row_handle).expect("Invalid handle");
+        let index = self.rows.iter().position(|r| r == row);
+        if index.is_none() {
+            return Err(());
+        }
+        self.rows.remove(index.unwrap());
+        Ok(())
+    }
+
+    pub fn last(&mut self) -> Option<RowHandle> {
+        if self.rows.is_empty() {
+            return None;
+        }
+        Some(RowHandle(self.rows.len() - 1))
+    }
+
     pub fn save(&mut self) {
         // open file with write access
         let mut file = OpenOptions::new()
@@ -53,15 +86,19 @@ where
             .open(&self.path)
             .expect("Failed to open file");
         for row in &self.rows {
-            let line = format!("{}\n", check_string(row.to_str()));
+            let line = format!("{}\n", check_string(row.to_str().as_str()));
             file.write(line.as_bytes())
                 .expect("Failed to write to database");
         }
     }
+
+    pub fn get(&self, row: RowHandle) -> Option<&T> {
+        self.rows.get(row.0)
+    }
 }
 
 // Ensure that \n characters become \\n.
-fn check_string(input: String) -> String {
+fn check_string(input: &str) -> String {
     let mut res = String::new();
     for char in input.chars() {
         match char {
@@ -116,7 +153,7 @@ pub fn get_columns(line: &str) -> Option<Vec<String>> {
             match char {
                 // push current to res and reset current.
                 ';' => {
-                    res.push(current.clone());
+                    res.push(current);
                     current = String::new();
                 }
                 '"' => {
