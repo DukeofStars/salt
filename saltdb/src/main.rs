@@ -1,14 +1,11 @@
-use std::{default, str::FromStr};
-
-use clap::Parser;
-use derive_more::FromStr;
+use std::str::FromStr;
 
 use saltdb::*;
 
 fn main() {
-    let cli = Cli::parse();
-    println!("Salt connecting to: {}", cli.db.display());
-    let mut db = Database::<Row>::connect(cli.db);
+    let db = "salt.sdb";
+    println!("Salt connecting to: {db}");
+    let mut db = Database::<Row>::connect(db.into());
     db.parse();
 
     for row in db.rows {
@@ -17,14 +14,30 @@ fn main() {
 }
 
 // Dummy row
-#[derive(Default, FromStr, Debug)]
+#[derive(Default, Debug)]
 struct Row {
-    name: String,
+    _name: String,
+    _id: u64,
 }
 
-#[derive(Parser)]
-struct Cli {
-    // File path to the saltdb database
-    #[clap(short, long, default_value = "salt.sdb", value_parser)]
-    db: std::path::PathBuf,
+impl FromStr for Row {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let columns = get_columns(s);
+
+        if columns.is_none() {
+            return Err(());
+        }
+
+        let columns = columns.unwrap();
+
+        let name = columns[0].clone();
+        let id = columns[1].parse::<u64>().unwrap();
+
+        Ok(Row {
+            _name: name,
+            _id: id,
+        })
+    }
 }
