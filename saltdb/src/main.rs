@@ -8,18 +8,23 @@ fn main() {
     let mut db = Database::<Row>::connect(db.into());
     db.parse();
 
-    db.insert(Row::from_str("\"The third row\";3").expect("Failed to parse row"));
+    db.insert(Row {
+        name: "John".into(),
+        id: 0, // TODO: change id each time
+    });
 
-    for row in db.rows {
-        println!("> {:?}", row);
+    for row in &db.rows {
+        println!("> {}: {}", row.id, row.name);
     }
+
+    db.save();
 }
 
 // Dummy row
 #[derive(Default, Debug)]
 struct Row {
-    _name: String,
-    _id: u64,
+    name: String,
+    id: u64,
 }
 
 impl FromStr for Row {
@@ -37,9 +42,12 @@ impl FromStr for Row {
         let name = columns[0].clone();
         let id = columns[1].parse::<u64>().unwrap();
 
-        Ok(Row {
-            _name: name,
-            _id: id,
-        })
+        Ok(Row { name, id })
+    }
+}
+
+impl ToStr for Row {
+    fn to_str(&self) -> String {
+        format!("\"{}\";{}", self.name, self.id.to_string())
     }
 }

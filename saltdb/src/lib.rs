@@ -1,34 +1,34 @@
 use std::{
     fmt::Debug,
-    fs::File,
-    io::{BufRead, BufReader},
+    fs::{File, OpenOptions},
+    io::{BufRead, BufReader, Write},
+    path::PathBuf,
     str::FromStr,
 };
 
-pub struct Database<T: FromStr + Default>
+pub struct Database<T: FromStr + Default + ToStr>
 where
     <T as FromStr>::Err: Debug,
 {
-    pub(crate) file: File,
+    pub(crate) path: PathBuf,
     pub rows: Vec<T>,
 }
 
-impl<T: FromStr + Default> Database<T>
+impl<T: FromStr + Default + ToStr> Database<T>
 where
     <T as FromStr>::Err: Debug,
 {
     pub fn connect(path: std::path::PathBuf) -> Database<T> {
-        let file = File::open(path).expect("Failed to open database");
         println!("Successful connection {}", "to database"); // TODO: change "database" too name of database
         Database::<T> {
-            file,
+            path,
             rows: Vec::new(),
         }
     }
 
     pub fn parse(&mut self) {
         // Read each line of file one by one and convert it too Schema (T)
-        let buf_reader = BufReader::new(&self.file);
+        let buf_reader = BufReader::new(File::open(&self.path).expect("Failed to open database"));
         let lines = buf_reader.lines();
         for line_ in lines {
             let line = line_.unwrap();
@@ -45,6 +45,36 @@ where
     pub fn insert(&mut self, row: T) {
         self.rows.push(row);
     }
+
+    pub fn save(&mut self) {
+        // open file with write access
+        let mut file = OpenOptions::new()
+            .write(true)
+            .open(&self.path)
+            .expect("Failed to open file");
+        for row in &self.rows {
+            let line = format!("{}\n", check_string(row.to_str()));
+            file.write(line.as_bytes())
+                .expect("Failed to write to database");
+        }
+    }
+}
+
+// Ensure that \n characters become \\n.
+fn check_string(input: String) -> String {
+    let mut res = String::new();
+    for char in input.chars() {
+        match char {
+            '\n' => {
+                res.push_str("\\n");
+            }
+            _ => {
+                res.push(char);
+            }
+        }
+    }
+
+    res
 }
 
 // Helper function to parse lines.
@@ -103,4 +133,8 @@ pub fn get_columns(line: &str) -> Option<Vec<String>> {
     res.push(current);
 
     Some(res)
+}
+
+pub trait ToStr {
+    fn to_str(&self) -> String;
 }
